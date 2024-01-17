@@ -556,13 +556,14 @@ void DepthCameraObstacleLayer::updateBounds(double robot_x, double robot_y, doub
     *combined_observations += *(obs.cloud_);
   }
   
+  ROS_INFO("Subscribed point cloud size: %lu", combined_observations->points.size());
   //voxelized pc to save computation
   if(use_voxelized_observation_){
     ds_combined_observations_.setLeafSize(0.05, 0.05, 0.05);
     ds_combined_observations_.setInputCloud(combined_observations);
     ds_combined_observations_.filter(*combined_observations);
   }
-
+  ROS_INFO("Downsampled point cloud size: %lu", combined_observations->points.size());
 
   //Given combined pointcloud to clear the markings by kd-tree method
   ClearMarkingbyKdtree(combined_observations, observations, robot_x, robot_y);
@@ -583,7 +584,8 @@ void DepthCameraObstacleLayer::updateBounds(double robot_x, double robot_y, doub
     ec_segmentation.setSearchMethod (pc_kdtree);
     ec_segmentation.setInputCloud (combined_observations);
     ec_segmentation.extract (cluster_indices_segmentation);
-    //int cls_num = 0;
+    int cls_num = 0;
+    ROS_INFO("EUC cluster number: %lu", cluster_indices_segmentation.size());
     for (std::vector<pcl::PointIndices>::const_iterator it = cluster_indices_segmentation.begin (); it != cluster_indices_segmentation.end (); ++it)
     {
       pcl::PointCloud<pcl::PointXYZI>::Ptr cloud_cluster (new pcl::PointCloud<pcl::PointXYZI>);
@@ -606,7 +608,9 @@ void DepthCameraObstacleLayer::updateBounds(double robot_x, double robot_y, doub
       cloud_cluster->height = 1;
       cloud_cluster->is_dense = true;
       ProcessCluster(observations, cloud_cluster, robot_x, robot_y, min_x, min_y, max_x, max_y);
-    }  
+      cls_num++;
+    }
+    ROS_INFO("EUC cluster number accepted: %d", cls_num);
     if(cluster_pub_.getNumSubscribers()>0){
       pcl_conversions::toPCL(ros::Time::now(), cloud_clustered2pub->header.stamp);
       cloud_clustered2pub->header.frame_id = global_frame_;
