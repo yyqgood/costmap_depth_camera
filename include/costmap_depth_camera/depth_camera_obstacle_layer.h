@@ -134,7 +134,8 @@ namespace nav2_costmap_2d
                        double* max_x, double* max_y);
 
   std::string global_frame_;  ///< @brief The global frame for the costmap
-  std::vector<std::shared_ptr<message_filters::SubscriberBase<rclcpp_lifecycle::LifecycleNode>>> observation_subscribers_;  ///< @brief Used for the observation message filters
+  // std::vector<std::shared_ptr<message_filters::SubscriberBase<rclcpp_lifecycle::LifecycleNode>>> observation_subscribers_;  ///< @brief Used for the observation message filters
+  std::vector<std::shared_ptr<message_filters::SubscriberBase>> observation_subscribers_;
   std::vector<std::shared_ptr<tf2_ros::MessageFilterBase> > observation_notifiers_;  ///< @brief Used to make sure that transforms are available for each sensor
   std::vector<std::shared_ptr<nav2_costmap_2d::ObservationBufferDepth> > observation_buffers_;  ///< @brief Used to store observations from various sensors
   std::vector<std::shared_ptr<nav2_costmap_2d::ObservationBufferDepth> > marking_buffers_;  ///< @brief Used to store observation buffers used for marking obstacles
@@ -148,6 +149,9 @@ namespace nav2_costmap_2d
 
   int combination_method_;
 
+  // nav2_util::LifecycleNode::SharedPtr node;
+  // rclcpp::Node::SharedPtr rclcpp_node_;
+
 private:
   
   /// Publishers for debugging
@@ -160,6 +164,8 @@ private:
   sensor_msgs::msg::PointCloud2::SharedPtr frustum_msg_;
   sensor_msgs::msg::PointCloud2::SharedPtr marking_msg_;
   sensor_msgs::msg::PointCloud2::SharedPtr cluster_msg_;
+
+  // rclcpp::Logger logger_;
 
   /// Publish frustums for visualization
   void pubFrustum(std::vector<nav2_costmap_2d::ObservationDepth>& observations);

@@ -40,8 +40,8 @@ def generate_launch_description():
     use_respawn = LaunchConfiguration('use_respawn')
     log_level = LaunchConfiguration('log_level')
 
+    # lifecycle_nodes = ['map_server', 'nav2_costmap_2d']
     lifecycle_nodes = ['map_server', 'planner_server']
-    # lifecycle_nodes = ['map_server']
 
     # Map fully qualified names to relative ones so the node's namespace can be prepended.
     # In case of the transforms (tf), currently, there doesn't seem to be a better alternative
@@ -83,7 +83,7 @@ def generate_launch_description():
 
     declare_params_file_cmd = DeclareLaunchArgument(
         'params_file',
-        default_value=os.path.join(bringup_dir, 'params', 'costmap_depth_camera_params.yaml'),
+        default_value=os.path.join(bringup_dir, 'params', 'costmap_hsr003_camera_params.yaml'),
         description='Full path to the ROS2 parameters file to use for all launched nodes')
 
     declare_autostart_cmd = DeclareLaunchArgument(
@@ -128,8 +128,8 @@ def generate_launch_description():
                 respawn=use_respawn,
                 respawn_delay=2.0,
                 parameters=[configured_params],
-                # arguments=['--ros-args', '--log-level', log_level],
-                remappings=remappings),          
+                arguments=['--ros-args', '--log-level', log_level],
+                remappings=remappings),   
             Node(
                 package='nav2_lifecycle_manager',
                 executable='lifecycle_manager',
@@ -138,96 +138,38 @@ def generate_launch_description():
                 arguments=['--ros-args', '--log-level', log_level],
                 parameters=[{'use_sim_time': use_sim_time},
                             {'autostart': autostart},
-                            {'node_names': lifecycle_nodes}]),
+                            {'node_names': lifecycle_nodes}]),       
         ]
-    )
-
-    load_composable_nodes = LoadComposableNodes(
-        condition=IfCondition(use_composition),
-        target_container=container_name,
-        composable_node_descriptions=[
-            ComposableNode(
-                package='nav2_map_server',
-                plugin='nav2_map_server::MapServer',
-                name='map_server',
-                parameters=[configured_params,
-                    {'yaml_filename': map_yaml_file}],
-                remappings=remappings),
-            ComposableNode(
-                package='nav2_planner',
-                plugin='nav2_planner::PlannerServer',
-                name='planner_server',
-                parameters=[configured_params],
-                remappings=remappings),
-            ComposableNode(
-                package='nav2_lifecycle_manager',
-                plugin='nav2_lifecycle_manager::LifecycleManager',
-                name='lifecycle_manager_navigation',
-                parameters=[{'use_sim_time': use_sim_time,
-                             'autostart': autostart,
-                             'node_names': lifecycle_nodes}]),
-        ],
     )
 
     tf_map2baselink_node = Node(
             package="tf2_ros",
             executable="static_transform_publisher",
             output="screen" ,
-            arguments=["18.6", "44.3", "0.0", "0.0", "0.0", "0.0", "map", "base_link"]
+            arguments=["30.0", "44.0", "0.20", "0.0", "0.0", "0.0", "map", "base_link"]
         )
 
-    tf_baselink2poi_node = Node(
+    tf_base2cameralink_node = Node(
             package="tf2_ros",
             executable="static_transform_publisher",
             output="screen" ,
-            arguments=["0.35", "0.0", "0.8", "0.0", "0.0", "0.0", "base_link", "poi"]
+            arguments=["0.5", "0.0", "0.0", "0.0", "0.0", "0.0", "base_link", "camera_link"]
         )
-
-    tf_baselink2camera_right_node = Node(
+    
+    tf_camera2cloudlink_node = Node(
             package="tf2_ros",
             executable="static_transform_publisher",
             output="screen" ,
-            arguments=["0.06062625", "-0.03520526", "-0.05759165", "0.67320326", "0.22852762", "0.13201488", "0.69075652", "poi", "camera_right_link"]
-        )
-
-    tf_baselink2camera_left_node = Node(
-        package="tf2_ros",
-        executable="static_transform_publisher",
-        output="screen" ,
-        arguments=["0.07531747", "0.03497384", "-0.05727026", "0.69597946", "-0.131985", "-0.2243832", "0.66921202", "poi", "camera_left_link"]
-        )
-
-    tf_right_optical_node = Node(
-            package="tf2_ros",
-            executable="static_transform_publisher",
-            output="screen" ,
-            arguments=["0.0", "0.0", "0.0", "-0.5", "0.5", "-0.5", "0.5", "camera_right_link", "camera_right_depth_optical_frame"]
-        )
-
-    tf_left_optical_node = Node(
-        package="tf2_ros",
-        executable="static_transform_publisher",
-        output="screen" ,
-        arguments=["0.0", "0.0", "0.0", "-0.5", "0.5", "-0.5", "0.5", "camera_left_link", "camera_left_depth_optical_frame"]
+            arguments=["0.0", "0.0", "0.0", "-1.57", "0.0", "-1.57", "camera_link", "camera_point_cloud_frame"]
         )
 
     start_rviz_cmd = Node(
         package='rviz2',
         executable='rviz2',
         output='screen',
-        arguments=['-d', os.path.join(bringup_dir, 'rviz', 'standalone_test.rviz')]
+        arguments=['-d', os.path.join(bringup_dir, 'rviz', 'hsr003_test.rviz')]
     )
 
-    bag_player = ExecuteProcess(
-        cmd=[
-            "ros2",
-            "bag",
-            "play",
-            "--loop",
-            os.path.join(bringup_dir, 'bag'),
-        ],
-        output="screen",
-    )
     # Create the launch description and populate
     ld = LaunchDescription()
 
@@ -247,21 +189,13 @@ def generate_launch_description():
     ld.add_action(declare_log_level_cmd)
     # Add the actions to launch all of the navigation nodes
     ld.add_action(load_nodes)
-    ld.add_action(load_composable_nodes)
-    
 
     # tf
     ld.add_action(tf_map2baselink_node)
-    ld.add_action(tf_baselink2poi_node)
-    ld.add_action(tf_baselink2camera_right_node)
-    ld.add_action(tf_baselink2camera_left_node)
-    ld.add_action(tf_right_optical_node)
-    ld.add_action(tf_left_optical_node)
+    ld.add_action(tf_base2cameralink_node)
+    ld.add_action(tf_camera2cloudlink_node)
 
     # rviz
     ld.add_action(start_rviz_cmd)
 
-    # bag player
-    ld.add_action(bag_player)
-    
     return ld

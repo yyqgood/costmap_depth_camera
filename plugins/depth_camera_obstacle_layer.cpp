@@ -71,10 +71,12 @@ namespace nav2_costmap_2d
   ///////////////////////////////////////////////////////////////
   void DepthCameraObstacleLayer::onInitialize(void)
   {
+    // std::cout<< "**************DepthCameraObstacleLayer::onInitialize************"<<std::endl;
+
     restricted_ = false;
-    RCLCPP_INFO(logger_, "%s being initialized as DepthCameraObstacleLayer!", getName().c_str());
+    // RCLCPP_INFO(logger_, "%s being initialized as DepthCameraObstacleLayer!", getName().c_str());
     
-    auto node = node_.lock();
+    auto node = node_;
     rolling_window_ = layered_costmap_->isRolling();
     has_costmap_initial_ = false;
 
@@ -89,14 +91,13 @@ namespace nav2_costmap_2d
 
     DepthCameraObstacleLayer::matchSize();
     current_ = true;
-
     ///Publishers for visualization
     auto pub_opt = rclcpp::PublisherOptions();
     auto sub_opt = rclcpp::SubscriptionOptions();
     
-    frustum_pub_ = node->create_publisher<visualization_msgs::msg::MarkerArray>("frustum", rclcpp::QoS(1), pub_opt);
-    marking_pub_ = node->create_publisher<sensor_msgs::msg::PointCloud2>("marking_pc", rclcpp::QoS(1), pub_opt);
-    cluster_pub_ = node->create_publisher<sensor_msgs::msg::PointCloud2>("clustered_pc", rclcpp::QoS(1), pub_opt);
+    frustum_pub_ = rclcpp_node_->create_publisher<visualization_msgs::msg::MarkerArray>("frustum", rclcpp::QoS(1), pub_opt);
+    marking_pub_ = rclcpp_node_->create_publisher<sensor_msgs::msg::PointCloud2>("marking_pc", rclcpp::QoS(1), pub_opt);
+    cluster_pub_ = rclcpp_node_->create_publisher<sensor_msgs::msg::PointCloud2>("clustered_pc", rclcpp::QoS(1), pub_opt);
 
     declareParameter("enable_near_blocked_protection", rclcpp::ParameterValue(true));
     node->get_parameter(name_ + ".enable_near_blocked_protection", enable_near_blocked_protection_);
@@ -135,7 +136,7 @@ namespace nav2_costmap_2d
     marking_height_above_ground_ = -100.0;
 
     global_frame_ = std::string(layered_costmap_->getGlobalFrameID());
-    RCLCPP_INFO( logger_, "%s's global frame is %s.", getName().c_str(), global_frame_.c_str());
+    // RCLCPP_INFO( logger_, "%s's global frame is %s.", getName().c_str(), global_frame_.c_str());
 
     double transform_tolerance;
     declareParameter("transform_tolerance", rclcpp::ParameterValue(0.2));
@@ -144,7 +145,7 @@ namespace nav2_costmap_2d
     std::string topics_string;
     declareParameter("observation_sources", rclcpp::ParameterValue(std::string("")));
     node->get_parameter(name_ + ".observation_sources", topics_string);
-    RCLCPP_INFO(logger_, "Subscribed to Topics: %s", topics_string.c_str());
+    // RCLCPP_INFO(logger_, "Subscribed to Topics: %s", topics_string.c_str());
 
     std::stringstream ss(topics_string);
     std::string source;
@@ -208,8 +209,8 @@ namespace nav2_costmap_2d
       /// Update minimum height and maximum height for overall marking
       marking_height_above_ground_ = std::max(marking_height_above_ground_,max_obstacle_height);
       marking_height_under_ground_ = std::min(marking_height_under_ground_,min_obstacle_height);
-      RCLCPP_WARN(logger_,"Update minimum height of markings to: %.2f, maximum height of markings to %.2f", 
-                          marking_height_under_ground_, marking_height_above_ground_);
+      // RCLCPP_WARN(logger_,"Update minimum height of markings to: %.2f, maximum height of markings to %.2f", 
+      //                     marking_height_under_ground_, marking_height_above_ground_);
 
       std::string raytrace_range_param_name, obstacle_range_param_name;
 
@@ -224,8 +225,8 @@ namespace nav2_costmap_2d
       declareParameter(source + "." + "raytrace_range", rclcpp::ParameterValue(3.0));
       node->get_parameter(name_ + "." + source + "." + "raytrace_range", raytrace_range);
 
-      RCLCPP_WARN(logger_,"Creating an observation buffer for source %s, topic %s, frame %s", 
-                            source.c_str(), topic.c_str(),sensor_frame.c_str());
+      // RCLCPP_WARN(logger_,"Creating an observation buffer for source %s, topic %s, frame %s", 
+      //                       source.c_str(), topic.c_str(),sensor_frame.c_str());
 
       /// create an observation buffer
       observation_buffers_.push_back(std::shared_ptr <ObservationBufferDepth> (new ObservationBufferDepth(
@@ -248,7 +249,7 @@ namespace nav2_costmap_2d
         node->get_clock(),
         node->get_logger())));
 
-        /// check if we'll add this buffer to our marking observation buffers
+      /// check if we'll add this buffer to our marking observation buffers
       if (marking)
       {
         marking_buffers_.push_back(observation_buffers_.back());
@@ -260,35 +261,37 @@ namespace nav2_costmap_2d
         clearing_buffers_.push_back(observation_buffers_.back());
       }
 
-      RCLCPP_WARN(logger_,
-        "Created an observation buffer for source %s, topic %s, global frame: %s, "
-        "expected update rate: %.2f, observation persistence: %.2f",
-        source.c_str(), topic.c_str(), global_frame_.c_str(), expected_update_rate, observation_keep_time);
+      // RCLCPP_WARN(logger_,
+      //   "Created an observation buffer for source %s, topic %s, global frame: %s, "
+      //   "expected update rate: %.2f, observation persistence: %.2f",
+      //   source.c_str(), topic.c_str(), global_frame_.c_str(), expected_update_rate, observation_keep_time);
 
       /// create a callback for the topic
       rmw_qos_profile_t custom_qos_profile = rmw_qos_profile_sensor_data;
-      custom_qos_profile.depth = 10;
+      custom_qos_profile.depth = 50;
 
-      auto sub = std::make_shared<message_filters::Subscriber<sensor_msgs::msg::PointCloud2,
-          rclcpp_lifecycle::LifecycleNode>>(node, topic, custom_qos_profile, sub_opt);
+      std::shared_ptr<message_filters::Subscriber<sensor_msgs::msg::PointCloud2>> sub(
+        new message_filters::Subscriber<sensor_msgs::msg::PointCloud2>(
+          rclcpp_node_, topic, custom_qos_profile));
+      sub->unsubscribe();
 
-      if (inf_is_valid)
-      {
-        RCLCPP_WARN(logger_,"depth_camera_obstacle_layer: inf_is_valid option is not applicable to PointCloud observations.");
+      if (inf_is_valid) {
+        // RCLCPP_WARN(
+        //   logger_,
+        //   "obstacle_layer: inf_is_valid option is not applicable to PointCloud observations.");
       }
 
-      std::shared_ptr < tf2_ros::MessageFilter<sensor_msgs::msg::PointCloud2>
-      > filter(new tf2_ros::MessageFilter<sensor_msgs::msg::PointCloud2>(*sub, *tf_, global_frame_, 5,
-        node->get_node_logging_interface(),
-        node->get_node_clock_interface(),
-        tf2::durationFromSec(0.2)));
+      std::shared_ptr<tf2_ros::MessageFilter<sensor_msgs::msg::PointCloud2>> filter(
+        new tf2_ros::MessageFilter<sensor_msgs::msg::PointCloud2>(
+          *sub, *tf_, global_frame_, 50, rclcpp_node_, tf2::durationFromSec(0.2)));
 
       filter->registerCallback(
-        std::bind(&DepthCameraObstacleLayer::pointCloud2Callback, this, std::placeholders::_1, observation_buffers_.back()));
+        std::bind(
+          &DepthCameraObstacleLayer::pointCloud2Callback, this, std::placeholders::_1,
+          observation_buffers_.back()));
 
       observation_subscribers_.push_back(sub);
-      observation_notifiers_.push_back(filter);
-    
+      observation_notifiers_.push_back(filter);    
 
       if (sensor_frame != "")
       {
@@ -301,12 +304,12 @@ namespace nav2_costmap_2d
 
     }
 
-    enable_obstacle_layer_sub_ = node->create_subscription<std_msgs::msg::Bool>("/enable_obstacle_layer", rclcpp::QoS(rclcpp::KeepLast(1)).transient_local().reliable(),
+    enable_obstacle_layer_sub_ = rclcpp_node_->create_subscription<std_msgs::msg::Bool>("/enable_obstacle_layer", rclcpp::QoS(rclcpp::KeepLast(1)).transient_local().reliable(),
                             std::bind(&DepthCameraObstacleLayer::enableObstacleLayerCB, this, std::placeholders::_1));
 
-    RCLCPP_WARN(logger_,"++++++++++++++++++++++++++++++++++++++++++++++++++++");
-    RCLCPP_WARN(logger_, "%s initialization complete!", getName().c_str());
-    RCLCPP_WARN(logger_,"++++++++++++++++++++++++++++++++++++++++++++++++++++");
+    // RCLCPP_WARN(logger_,"++++++++++++++++++++++++++++++++++++++++++++++++++++");
+    // RCLCPP_WARN(logger_, "%s initialization complete!", getName().c_str());
+    // RCLCPP_WARN(logger_,"++++++++++++++++++++++++++++++++++++++++++++++++++++"); 
     enabled_ = true;
     footprint_clearing_enabled_=true;
   }
@@ -440,7 +443,7 @@ namespace nav2_costmap_2d
       auto size_x = master->getSizeInCellsX();
       auto size_y = master->getSizeInCellsY();
       has_costmap_initial_ = true;
-      RCLCPP_WARN(logger_.get_child(name_), "%u, %u", size_x, size_y);
+      // RCLCPP_WARN(logger_.get_child(name_), "%u, %u", size_x, size_y);
       resizeMap(
         master->getSizeInCellsX(), master->getSizeInCellsY(), master->getResolution(),
         master->getOriginX(), master->getOriginY());
@@ -534,7 +537,7 @@ namespace nav2_costmap_2d
   //////////////////////////////////////////////////////////////////////////
   void DepthCameraObstacleLayer::activate()
   {
-    RCLCPP_INFO(logger_, "%s was activated.", getName().c_str());
+    // RCLCPP_INFO(logger_, "%s was activated.", getName().c_str());
 
     /// if we're stopped we need to re-subscribe to topics
     for (unsigned int i = 0; i < observation_subscribers_.size(); ++i)
@@ -558,7 +561,7 @@ namespace nav2_costmap_2d
   void DepthCameraObstacleLayer::deactivate()
   {
     /// unsubscribe from all sensor sources
-    RCLCPP_INFO(logger_, "%s was deactivated.", getName().c_str());
+    // RCLCPP_INFO(logger_, "%s was deactivated.", getName().c_str());
 
     for (unsigned int i = 0; i < observation_subscribers_.size(); ++i)
     {
@@ -574,7 +577,7 @@ namespace nav2_costmap_2d
   void DepthCameraObstacleLayer::reset(void)
   {
 
-    RCLCPP_INFO(logger_, "%s was reseted.", getName().c_str());
+    // RCLCPP_INFO(logger_, "%s was reseted.", getName().c_str());
     deactivate();
     resetMaps();
     current_ = true;
@@ -586,6 +589,7 @@ namespace nav2_costmap_2d
                                                      const std::shared_ptr<ObservationBufferDepth>& buffer)
   {
     /// buffer the point cloud
+    std::cout<< "*********DepthCameraObstacleLayer::pointCloud2Callback*********" <<std::endl;
     buffer->lock();
     buffer->bufferCloud(*message);
     buffer->unlock();
@@ -787,7 +791,7 @@ namespace nav2_costmap_2d
         /// ToDo: confirm that the clk works!!
         //auto& clk = *this->get_clock();
         //RCLCPP_WARN_THROTTLE(logger_,clk, 30, "Blocked by something, clearing mechanism is skipped.");
-        RCLCPP_WARN(logger_,"Blocked by something, clearing mechanism is skipped.");
+        // RCLCPP_WARN(logger_,"Blocked by something, clearing mechanism is skipped.");
         bypass_clearing = true;
       }
     }
@@ -833,7 +837,7 @@ namespace nav2_costmap_2d
         /// if marked point cloud is n meters from robot, we just skip, because it is out of our frustum 
         if(hypot(wx-robot_x,wy-robot_y)>10.0 && !is_marking_sub)
         {
-          RCLCPP_DEBUG(logger_,"Marked pointcloud is greater 10m and therefore out of frustum.");
+          // RCLCPP_DEBUG(logger_,"Marked pointcloud is greater 10m and therefore out of frustum.");
           continue;
         }
 
@@ -924,7 +928,7 @@ namespace nav2_costmap_2d
         ///if marked point cloud is n meters from robot, we just skip, because it is out of our frustum 
         if(hypot(wx-robot_x,wy-robot_y)>10.0 && !is_marking_sub)
         {
-          RCLCPP_DEBUG(logger_,"Marked pointcloud is greater 10m and therefore out of frustum.");
+          // RCLCPP_DEBUG(logger_,"Marked pointcloud is greater 10m and therefore out of frustum.");
           continue;
         }
 
@@ -1052,7 +1056,7 @@ namespace nav2_costmap_2d
       {
         if (!worldToMap(wx, wy, mx, my))
         {
-          RCLCPP_DEBUG(logger_,"[ProcessCluster] Computing map coords failed");
+          // RCLCPP_DEBUG(logger_,"[ProcessCluster] Computing map coords failed");
           continue;
         }    
 

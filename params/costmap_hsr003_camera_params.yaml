@@ -32,34 +32,16 @@ global_costmap:
         enable_near_blocked_protection: False
         number_points_considered_as_blocked: 5
         use_voxelized_observation: True
-        observation_sources: left_depth_cam right_depth_cam  orbbec_depth_cam
-        # left_depth_cam:
-        #   sensor_frame: camera_left_link
-        #   topic: /depth2pc_left_node/point_cloud_from_depth
-        #   expected_update_rate: 0.3
-        #   FOV_W: 1.3962
-        #   FOV_V: 0.9599
-        #   min_detect_distance: 0.15
-        #   max_detect_distance: 4.0
-        #   min_obstacle_height: 0.2
-        orbbec_depth_cam:
+        observation_sources: hsr003_depth_cam
+        hsr003_depth_cam:
           sensor_frame: camera_link
-          topic: /camera/depth/points
+          topic: /sunny_topic/tof_frame/pointcloud
           expected_update_rate: 0.3
-          FOV_W: 1.3962
-          FOV_V: 0.9599
-          min_detect_distance: 0.2
+          FOV_W: 1.9199                     # 1.3962  110 = 1.9199
+          FOV_V: 1.0297                     # 0.9599  59 = 1.0297
+          min_detect_distance: 0.1          # 0.2
           max_detect_distance: 2.0
-          min_obstacle_height: 0.2
-        # right_depth_cam:
-        #   sensor_frame: camera_right_link
-        #   topic: /depth2pc_right_node/point_cloud_from_depth
-        #   expected_update_rate: 0.3
-        #   FOV_W: 1.3962
-        #   FOV_V: 0.9599
-        #   min_detect_distance: 0.15
-        #   max_detect_distance: 4.0
-        #   min_obstacle_height: 0.2   
+          min_obstacle_height: 0.01 
 
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"

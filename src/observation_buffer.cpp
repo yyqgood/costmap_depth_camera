@@ -119,10 +119,10 @@ void ObservationBufferDepth::bufferCloud(const sensor_msgs::msg::PointCloud2& cl
     ds_rawcloud.filter(*rawcloud);
   }
 
-  if(rawcloud->size() >20000)
+  if(rawcloud->size() > 20000)
   {
     RCLCPP_ERROR_STREAM(logger_, "Raw cloud size " << rawcloud->size() <<" is larger than 20000 points. Exiting.. ");
-    return;
+    // return;
   }
   
   sensor_msgs::msg::PointCloud2::SharedPtr ds_cloud_msg = std::make_shared<sensor_msgs::msg::PointCloud2>();
